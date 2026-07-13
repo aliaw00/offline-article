@@ -1,0 +1,76 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+
+# Virtual Environments
+venv/
+.venv/
+env/
+
+# Environment Variables / Secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Build / Packaging
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Testing / Coverage
+.pytest_cache/
+.tox/
+.nox/
+.coverage*
+htmlcov/
+
+# Type Checkers / Linters
+.mypy_cache/
+.pyre/
+.ruff_cache/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Logs
+*.log
+
+# Databases
+*.db
+*.sqlite*
+
+# Caches
+.cache/
+
+# AI / ML
+wandb/
+mlruns/
+runs/
+checkpoints/
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*~
+
+# OS Files
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Node.js (for hybrid projects)
+node_modules/
+
+# Temporary Files
+tmp/
+temp/
+*.tmp
+*.bak
+
+# Local Project Files
+error_prompt.txt
