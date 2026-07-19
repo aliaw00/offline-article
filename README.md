@@ -38,7 +38,7 @@ To set up a local development environment:
 
 3. Install the package in editable mode with development dependencies:
    ```bash
-   pip install --no-build-isolation -e .[dev]
+   pip install --no-build-isolation -e ".[dev]"
    ```
 
 4. Install Playwright browser binaries:

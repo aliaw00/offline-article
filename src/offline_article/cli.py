@@ -1,6 +1,6 @@
 import logging
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Any
 
 import typer
 from rich.console import Console
@@ -115,7 +115,8 @@ def save_command(
     console.print(f"[green]Starting capture for:[/] {url}")
     try:
         app_runner = App(config)
-        saved_path = app_runner.run(url, output)
+        with console.status("[bold green]Capturing page resources (this may take a few seconds)...", spinner="dots"):
+            saved_path = app_runner.run(url, output)
         console.print(f"[bold green]Success![/] Saved page to: [bold]{saved_path}[/]")
     except Exception as e:
         console.print(f"[bold red]Execution error:[/] {e}")
@@ -236,13 +237,110 @@ def validate_command(
     """
     setup_logging(verbose=verbose, debug=debug)
     console.print(f"[blue]Validating offline archive at:[/] {path}")
-    # TODO: Implement integrity verification
+
+    if not path.exists():
+        console.print(f"[bold red]Path does not exist:[/] {path}")
+        raise typer.Exit(1)
+
+    from bs4 import BeautifulSoup
+
+    from offline_article.discover.html import get_str_attr
+
+    issues: list[str] = []
+
+    def check_html(html_text: str, check_file_exists_callback: Any = None) -> None:
+        soup = BeautifulSoup(html_text, "lxml")
+
+        # Check stylesheets
+        for link in soup.find_all("link"):
+            rel: Any = link.get("rel") or []
+            rel_list = rel if isinstance(rel, list) else [rel]
+            rel_lower = [str(r).lower() for r in rel_list]
+            if "stylesheet" in rel_lower:
+                href = get_str_attr(link, "href")
+                if href:
+                    if href.lower().startswith("http"):
+                        issues.append(f"External stylesheet link: {href}")
+                    elif check_file_exists_callback:
+                        if not check_file_exists_callback(href):
+                            issues.append(f"Broken local stylesheet link: {href}")
+
+        # Check scripts
+        for script in soup.find_all("script"):
+            src = get_str_attr(script, "src")
+            if src:
+                if src.lower().startswith("http"):
+                    issues.append(f"External script link: {src}")
+                elif check_file_exists_callback:
+                    if not check_file_exists_callback(src):
+                        issues.append(f"Broken local script link: {src}")
+
+        # Check images
+        for img in soup.find_all("img"):
+            src = get_str_attr(img, "src")
+            if src:
+                if src.lower().startswith("http"):
+                    issues.append(f"External image link: {src}")
+                elif check_file_exists_callback:
+                    if not check_file_exists_callback(src):
+                        issues.append(f"Broken local image link: {src}")
+
+    if path.is_file() and path.suffix.lower() == ".zip":
+        import zipfile
+
+        try:
+            with zipfile.ZipFile(path) as zf:
+                namelist = zf.namelist()
+                if "index.html" not in namelist:
+                    issues.append("Missing index.html inside ZIP package.")
+                else:
+                    html_text = zf.read("index.html").decode("utf-8", errors="replace")
+                    check_html(html_text, lambda rel: rel in namelist or rel.replace("\\", "/") in namelist)
+        except Exception as e:
+            issues.append(f"Failed to read ZIP archive: {e}")
+
+    elif path.is_dir():
+        index_file = path / "index.html"
+        if not index_file.is_file():
+            issues.append("Missing index.html inside extracted directory.")
+        else:
+            html_text = index_file.read_text(encoding="utf-8")
+            check_html(html_text, lambda rel: (path / rel).is_file())
+
+    elif path.is_file() and path.suffix.lower() in (".html", ".htm"):
+        html_text = path.read_text(encoding="utf-8")
+        check_html(html_text)
+
+    else:
+        console.print(
+            "[bold red]Error:[/] Unsupported file extension for validation. Must be .zip, .html, or directory."
+        )
+        raise typer.Exit(1)
+
+    if not issues:
+        console.print("[bold green]Success![/] Offline archive is healthy. All references are fully self-contained.")
+    else:
+        console.print(f"[bold yellow]Validation found {len(issues)} issues:[/]")
+        for issue in issues:
+            console.print(f"  [red]-[/] {issue}")
+        raise typer.Exit(1)
 
 
 @app.command(name="batch")
 def batch_command(
     file_path: Annotated[Path, typer.Argument(help="Path to file containing URLs (one per line)")],
-    format: Annotated[str, typer.Option("--format", "-f")] = "html",
+    output_dir: Annotated[
+        Path,
+        typer.Option("--output-dir", "-d", help="Directory where captured files will be saved"),
+    ] = Path("."),
+    format: Annotated[
+        str,
+        typer.Option("--format", "-f", help="Output archive format: html, zip, dir, mhtml"),
+    ] = "html",
+    browser: Annotated[
+        str,
+        typer.Option("--browser", "-b", help="Browser type: chromium, firefox, webkit"),
+    ] = "chromium",
     verbose: Annotated[bool, typer.Option("--verbose", "-v", help="Enable verbose logging")] = False,
     debug: Annotated[bool, typer.Option("--debug", "-d", help="Enable debug logging")] = False,
 ) -> None:
@@ -251,7 +349,56 @@ def batch_command(
     """
     setup_logging(verbose=verbose, debug=debug)
     console.print(f"[blue]Processing batch from:[/] {file_path}")
-    # TODO: Implement batch processing pipeline
+
+    if not file_path.is_file():
+        console.print(f"[bold red]File not found:[/] {file_path}")
+        raise typer.Exit(1)
+
+    urls: list[str] = []
+    with open(file_path, encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if line and not line.startswith("#"):
+                urls.append(line)
+
+    if not urls:
+        console.print("[bold yellow]No valid URLs found in file.[/]")
+        return
+
+    console.print(f"[green]Found {len(urls)} URLs to capture.[/]")
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    config = CaptureConfig(
+        format=format,
+        browser=browser,
+        verbose=verbose,
+        debug=debug,
+    )
+    app_runner = App(config)
+
+    success_count = 0
+    for i, url in enumerate(urls, 1):
+        console.print(f"\n[bold cyan][{i}/{len(urls)}][/] Capturing {url}...")
+        try:
+            from urllib.parse import urlparse
+
+            parsed = urlparse(url)
+            host = parsed.netloc.replace(".", "_") or "page"
+            path_part = parsed.path.strip("/").replace("/", "_")
+            filename = f"{host}_{path_part}" if path_part else host
+
+            # Form final output file or directory path
+            out_path = output_dir / f"{filename}.{format}"
+
+            with console.status("[bold green]Capturing page...", spinner="dots"):
+                saved_path = app_runner.run(url, out_path)
+
+            console.print(f"  [bold green]Success![/] Saved to: [bold]{saved_path}[/]")
+            success_count += 1
+        except Exception as e:
+            console.print(f"  [bold red]Failed:[/] {e}")
+
+    console.print(f"\n[bold green]Batch complete![/] Successfully captured {success_count}/{len(urls)} pages.")
 
 
 if __name__ == "__main__":
