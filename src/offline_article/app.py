@@ -1,8 +1,9 @@
 import logging
 from pathlib import Path
+from typing import Any
 
 from offline_article.archive import ArchiveWriterFactory
-from offline_article.browser import BrowserManager
+from offline_article.browser import BrowserManager, load_cookies_from_file, save_cookies_to_file
 from offline_article.config import CaptureConfig
 from offline_article.discover import ResourceDiscoverer
 from offline_article.exceptions import ArchiveError
@@ -53,7 +54,43 @@ class App:
 
         # 1. Run render pipeline in browser context
         with browser_manager.session() as context:
+            # Load cookies from file if provided
+            if self.config.cookies_path and self.config.cookies_path.is_file():
+                logger.info(f"Loading cookies from {self.config.cookies_path}")
+                loaded_cookies = load_cookies_from_file(self.config.cookies_path)
+                if loaded_cookies:
+                    valid_keys = {
+                        "name",
+                        "value",
+                        "url",
+                        "domain",
+                        "path",
+                        "expires",
+                        "httpOnly",
+                        "secure",
+                        "sameSite",
+                    }
+                    filtered_cookies: list[Any] = []
+                    for c in loaded_cookies:
+                        filtered_cookie = {k: v for k, v in c.items() if k in valid_keys}
+                        filtered_cookies.append(filtered_cookie)
+                    try:
+                        context.add_cookies(filtered_cookies)
+                    except Exception as e:
+                        logger.warning(f"Failed to load cookies into browser context: {e}")
+
             page = page_loader.load_page(context, url)
+
+            # Support OAuth/interactive login workflows
+            if self.config.interactive:
+                logger.info("Interactive mode active. Please log in through the browser window.")
+                print("\n" + "=" * 80)
+                print(" [INTERACTIVE MODE ACTIVE]")
+                print(" Please complete authentication in the browser window.")
+                print(" Press [Enter] in this terminal when you are ready to continue capturing...")
+                print("=" * 80 + "\n")
+                input()
+
             logger.info("Extracting rendered page content...")
             html_content = page.content()
 
@@ -63,6 +100,11 @@ class App:
                 user_agent = page.evaluate("navigator.userAgent")
             except Exception as e:
                 logger.warning(f"Could not retrieve user agent from browser: {e}")
+
+        # Save cookies back to file if specified
+        if self.config.cookies_path:
+            logger.info(f"Saving captured session cookies to {self.config.cookies_path}")
+            save_cookies_to_file(cookies, self.config.cookies_path)
 
         # 2. Setup local disk cache and ResourceFetcher using session credentials
         cache = DiskCache(self.config.cache_dir)

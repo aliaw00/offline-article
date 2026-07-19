@@ -79,6 +79,10 @@ def save_command(
     ] = False,
     verbose: Annotated[bool, typer.Option("--verbose", "-v", help="Enable verbose logging")] = False,
     debug: Annotated[bool, typer.Option("--debug", "-d", help="Enable debug logging")] = False,
+    interactive: Annotated[
+        bool,
+        typer.Option("--interactive", "-i", help="Run browser in headful mode and pause for manual interaction"),
+    ] = False,
 ) -> None:
     """
     Save a web page as a self-contained offline archive.
@@ -102,6 +106,7 @@ def save_command(
             no_js=no_js,
             verbose=verbose,
             debug=debug,
+            interactive=interactive,
         )
     except Exception as e:
         console.print(f"[bold red]Error in configuration parameters:[/] {e}")
@@ -134,8 +139,41 @@ def auth_login_command(
     Launch browser and let user log in manually to save session/profile context.
     """
     setup_logging(verbose=verbose, debug=debug)
+
+    if not profile:
+        profile = Path.home() / ".config" / "offline-article" / "profiles" / "default"
+
     console.print(f"[blue]Starting interactive login flow using {browser}...[/]")
-    # TODO: Implement login workflow helper
+    console.print(f"[green]Using browser profile directory:[/] {profile}")
+
+    config = CaptureConfig(
+        browser=browser,
+        profile_path=profile,
+        interactive=True,
+        verbose=verbose,
+        debug=debug,
+    )
+
+    from offline_article.browser import BrowserManager
+
+    browser_manager = BrowserManager(config)
+
+    try:
+        with browser_manager.session() as context:
+            page = context.new_page()
+            # Open a basic page so user can navigate or we can let them use blank page
+            page.goto("https://google.com")
+
+            console.print("\n[bold green]Browser window is now open.[/]")
+            console.print("Please navigate to your target website, perform any logins/OAuth flows,")
+            console.print("then close the browser window or press [Enter] in this terminal to save session data.\n")
+
+            input("Press [Enter] when finished...")
+
+        console.print("[bold green]Success![/] Session profile saved successfully.")
+    except Exception as e:
+        console.print(f"[bold red]Login flow failed:[/] {e}")
+        raise typer.Exit(1) from e
 
 
 @app.command(name="inspect")

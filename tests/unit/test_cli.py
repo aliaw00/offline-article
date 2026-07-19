@@ -40,7 +40,9 @@ def test_save_command_zip(local_server: str, tmp_path: Path) -> None:
     with zipfile.ZipFile(output_file) as zf:
         namelist = zf.namelist()
         assert "index.html" in namelist
-        assert any(name.startswith("assets/logo_") for name in namelist)
+        # Due to content-hash deduplication, identical logo.png and bg.png
+        # may compile into a single file with either bg_ or logo_ prefix.
+        assert any(name.startswith("assets/logo_") or name.startswith("assets/bg_") for name in namelist)
 
 
 def test_save_command_dir(local_server: str, tmp_path: Path) -> None:

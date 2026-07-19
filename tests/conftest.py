@@ -83,6 +83,16 @@ def local_server() -> Generator[str, None, None]:
         thread = threading.Thread(target=server.serve_forever, daemon=True)
         thread.start()
 
+        # Wait until server is listening and ready
+        import time
+
+        for _ in range(50):
+            try:
+                with socket.create_connection(("127.0.0.1", port), timeout=0.1):
+                    break
+            except OSError:
+                time.sleep(0.05)
+
         yield f"http://127.0.0.1:{port}"
 
         server.shutdown()
