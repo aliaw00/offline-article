@@ -1,5 +1,4 @@
 import logging
-
 from typing import Literal, cast
 
 from playwright.sync_api import BrowserContext, Page
@@ -43,9 +42,7 @@ class PageLoader:
             if wait_until_value not in ["load", "domcontentloaded", "networkidle"]:
                 wait_until_value = "networkidle"
 
-            wait_until_literal = cast(
-                Literal["commit", "domcontentloaded", "load", "networkidle"], wait_until_value
-            )
+            wait_until_literal = cast(Literal["commit", "domcontentloaded", "load", "networkidle"], wait_until_value)
             response = page.goto(url, wait_until=wait_until_literal, timeout=timeout_ms)
             if not response:
                 raise RenderError(f"No response received from {url}")
@@ -89,9 +86,7 @@ class PageLoader:
             # Wait for network idle again after scrolling
             wait_until_value = self.config.wait_until
             if wait_until_value in ["load", "domcontentloaded", "networkidle"]:
-                state_literal = cast(
-                    Literal["domcontentloaded", "load", "networkidle"], wait_until_value
-                )
+                state_literal = cast(Literal["domcontentloaded", "load", "networkidle"], wait_until_value)
                 page.wait_for_load_state(state=state_literal, timeout=5000)
         except Exception as e:
             logger.warning(f"Scrolling page failed: {e}")

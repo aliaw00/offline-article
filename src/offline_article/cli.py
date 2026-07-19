@@ -149,7 +149,42 @@ def inspect_command(
     """
     setup_logging(verbose=verbose, debug=debug)
     console.print(f"[blue]Inspecting URL:[/] {url}")
-    # TODO: Implement URL discovery preview workflow
+
+    from rich.table import Table
+
+    from offline_article.browser import BrowserManager
+    from offline_article.discover import ResourceDiscoverer
+    from offline_article.render import PageLoader
+
+    config = CaptureConfig(verbose=verbose, debug=debug)
+    browser_manager = BrowserManager(config)
+    page_loader = PageLoader(config)
+    discoverer = ResourceDiscoverer()
+
+    try:
+        with browser_manager.session() as context:
+            page = page_loader.load_page(context, url)
+            html_content = page.content()
+            resources = discoverer.discover_from_html(html_content, url)
+
+        table = Table(title=f"Discovered Assets for {url}")
+        table.add_column("Asset Type", style="cyan")
+        table.add_column("Count", style="green")
+
+        for category, urls in resources.items():
+            table.add_row(category.capitalize(), str(len(urls)))
+
+        console.print(table)
+
+        if verbose or debug:
+            for category, urls in resources.items():
+                if urls:
+                    console.print(f"\n[bold]{category.capitalize()}:[/]")
+                    for u in sorted(urls):
+                        console.print(f"  - {u}")
+    except Exception as e:
+        console.print(f"[bold red]Inspection error:[/] {e}")
+        raise typer.Exit(1) from e
 
 
 @app.command(name="validate")
