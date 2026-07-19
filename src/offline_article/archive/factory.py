@@ -1,6 +1,7 @@
 from offline_article.archive.base import ArchiveWriter
 from offline_article.archive.dir_writer import DirWriter
 from offline_article.archive.html_writer import HtmlWriter
+from offline_article.archive.mhtml_writer import MhtmlWriter
 from offline_article.archive.zip_writer import ZipWriter
 from offline_article.exceptions import ConfigurationError
 
@@ -18,6 +19,6 @@ class ArchiveWriterFactory:
         elif fmt == "dir":
             return DirWriter()
         elif fmt == "mhtml":
-            raise NotImplementedError("MHTML format support is not implemented yet.")
+            return MhtmlWriter()
         else:
             raise ConfigurationError(f"Unsupported archive format: {format_name}")
