@@ -26,6 +26,10 @@ class CaptureConfig(BaseModel):
     debug: bool = Field(default=False, description="Enable debug logging")
     keep_temp: bool = Field(default=False, description="Keep temporary files after execution")
     open_after_save: bool = Field(default=False, description="Open saved file in default browser after save")
+    cache_dir: Path = Field(
+        default_factory=lambda: Path.home() / ".cache" / "offline-article",
+        description="Local cache directory",
+    )
 
 
 class AppConfig(BaseModel):

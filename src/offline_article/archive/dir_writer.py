@@ -17,7 +17,7 @@ logger = logging.getLogger("offline-article.archive.dir")
 URL_REGEX = re.compile(r"url\(\s*['\"]?(.*?)['\"]?\s*\)", re.IGNORECASE)
 
 
-def get_safe_filename(url: str, content_type: str) -> str:
+def get_safe_filename(url: str, content_type: str, hash_override: str | None = None) -> str:
     """Generates a unique, clean, and safe filename for an asset based on URL and MIME type."""
     parsed = urlparse(url)
     mime = content_type.split(";")[0].strip()
@@ -32,7 +32,7 @@ def get_safe_filename(url: str, content_type: str) -> str:
         elif "html" in mime:
             ext = ".html"
 
-    hasher = hashlib.sha256(url.encode("utf-8")).hexdigest()[:12]
+    hasher = hash_override or hashlib.sha256(url.encode("utf-8")).hexdigest()[:12]
     orig_name = Path(parsed.path).stem
     # Filter only alphanumeric, hyphens, and underscores
     orig_name = "".join(c for c in orig_name if c.isalnum() or c in ("-", "_"))[:20]
@@ -62,18 +62,29 @@ class DirWriter(ArchiveWriter):
 
             url_to_relative: dict[str, str] = {}
 
-            # 2. Write assets to local files and populate mapping
+            # Map from content hash to relative filename path to avoid writing duplicate assets
+            hash_to_relative: dict[str, str] = {}
+
+            # 2. Write assets to local files and populate mapping (deduplicated by content hash)
             for url, (data, mime) in assets.items():
                 if url == base_url:
                     continue
-                filename = get_safe_filename(url, mime)
+                content_hash = hashlib.sha256(data).hexdigest()[:12]
+
+                if content_hash in hash_to_relative:
+                    url_to_relative[url] = hash_to_relative[content_hash]
+                    continue
+
+                filename = get_safe_filename(url, mime, hash_override=content_hash)
                 asset_file_path = assets_dir / filename
 
                 # Write data to file
                 with open(asset_file_path, "wb") as f_asset:
                     f_asset.write(data)
 
-                url_to_relative[url] = f"assets/{filename}"
+                rel_path = f"assets/{filename}"
+                hash_to_relative[content_hash] = rel_path
+                url_to_relative[url] = rel_path
 
             # 3. Rewrite CSS files with relative url() paths from their local perspective
             for url, (data, mime) in assets.items():

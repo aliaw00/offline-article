@@ -6,6 +6,7 @@ from typing import Any
 import httpx
 
 from offline_article.exceptions import FetchError
+from offline_article.fetch.cache import DiskCache
 
 logger = logging.getLogger("offline-article.fetch")
 
@@ -19,8 +20,10 @@ class ResourceFetcher:
         user_agent: str | None = None,
         timeout: int = 15,
         proxy: str | None = None,
+        cache: DiskCache | None = None,
     ) -> None:
         self.timeout = timeout
+        self.cache = cache
         default_ua = (
             "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         )
@@ -57,6 +60,11 @@ class ResourceFetcher:
         Fetches the content of a resource with exponential backoff retries.
         Returns a tuple of (content_bytes, content_type_string).
         """
+        if self.cache:
+            cached = self.cache.get(url)
+            if cached is not None:
+                return cached
+
         retries = 3
         backoff = 1.0
 
@@ -67,7 +75,12 @@ class ResourceFetcher:
                 response.raise_for_status()
 
                 content_type = response.headers.get("content-type", "application/octet-stream")
-                return response.content, content_type
+                content = response.content
+
+                if self.cache:
+                    self.cache.set(url, content, content_type)
+
+                return content, content_type
             except Exception as e:
                 if i == retries - 1:
                     logger.error(f"Failed to fetch {url} after {retries} attempts: {e}")

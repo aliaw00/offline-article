@@ -6,7 +6,7 @@ from offline_article.browser import BrowserManager
 from offline_article.config import CaptureConfig
 from offline_article.discover import ResourceDiscoverer
 from offline_article.exceptions import ArchiveError
-from offline_article.fetch import ResourceFetcher
+from offline_article.fetch import DiskCache, ResourceFetcher
 from offline_article.render import PageLoader
 
 logger = logging.getLogger("offline-article")
@@ -64,12 +64,14 @@ class App:
             except Exception as e:
                 logger.warning(f"Could not retrieve user agent from browser: {e}")
 
-        # 2. Setup ResourceFetcher using session credentials
+        # 2. Setup local disk cache and ResourceFetcher using session credentials
+        cache = DiskCache(self.config.cache_dir)
         fetcher = ResourceFetcher(
             cookies=cookies,
             user_agent=user_agent,
             timeout=self.config.timeout,
             proxy=self.config.proxy,
+            cache=cache,
         )
 
         # 3. Discover all resources (HTML + CSS recursive imports)
