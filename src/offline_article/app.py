@@ -1,12 +1,13 @@
 import logging
 from pathlib import Path
 
+from offline_article.archive import ArchiveWriterFactory
 from offline_article.browser import BrowserManager
 from offline_article.config import CaptureConfig
+from offline_article.discover import ResourceDiscoverer
 from offline_article.exceptions import ArchiveError
-from offline_article.fetch import ResourceFetcher, to_data_uri
+from offline_article.fetch import ResourceFetcher
 from offline_article.render import PageLoader
-from offline_article.rewrite import inline_html_resources
 
 logger = logging.getLogger("offline-article")
 
@@ -24,11 +25,9 @@ class App:
         Orchestrates the entire capture pipeline:
         1. Launches browser
         2. Renders and loads page
-        3. Discovers resources
-        4. Fetches and caches resources
-        5. Rewrites and inlines resources
-        6. Writes to requested archive format
-        7. Validates output
+        3. Discovers resources (HTML + CSS imports recursively)
+        4. Fetches all assets using browser session details
+        5. Rewrites and archives resources into the target format using Strategy Pattern
         """
         logger.info(f"App running capture for URL: {url} with configuration")
 
@@ -73,55 +72,46 @@ class App:
             proxy=self.config.proxy,
         )
 
-        # Caches to avoid duplicate fetches for shared resources
-        text_cache: dict[str, str] = {}
-        data_uri_cache: dict[str, str] = {}
+        # 3. Discover all resources (HTML + CSS recursive imports)
+        discoverer = ResourceDiscoverer()
 
-        def fetch_text_callback(resource_url: str) -> str | None:
-            if resource_url in text_cache:
-                return text_cache[resource_url]
+        def css_fetch_for_discovery(css_url: str) -> str | None:
             try:
-                content_bytes, _ = fetcher.fetch(resource_url)
-                content_str = content_bytes.decode("utf-8", errors="replace")
-                text_cache[resource_url] = content_str
-                return content_str
+                data, _ = fetcher.fetch(css_url)
+                return data.decode("utf-8", errors="replace")
             except Exception as e:
-                logger.warning(f"Failed to fetch text resource {resource_url}: {e}")
+                logger.warning(f"Failed to fetch CSS for discovery {css_url}: {e}")
                 return None
 
-        def fetch_data_uri_callback(resource_url: str) -> str | None:
-            if resource_url in data_uri_cache:
-                return data_uri_cache[resource_url]
+        logger.info("Discovering all page assets...")
+        discovered = discoverer.discover_all(html_content, url, css_fetch_for_discovery)
+
+        # Flatten sets of URLs into a single set of unique absolute URLs to download
+        all_urls = set()
+        for urls in discovered.values():
+            all_urls.update(urls)
+
+        # 4. Fetch all discovered resource assets
+        assets: dict[str, tuple[bytes, str]] = {}
+        for asset_url in all_urls:
+            # Skip the main page itself if it's returned in the discovered set
+            if asset_url == url:
+                continue
             try:
-                content_bytes, content_type = fetcher.fetch(resource_url)
-                data_uri = to_data_uri(content_bytes, content_type)
-                data_uri_cache[resource_url] = data_uri
-                return data_uri
+                data, mime = fetcher.fetch(asset_url)
+                assets[asset_url] = (data, mime)
             except Exception as e:
-                logger.warning(f"Failed to fetch data URI resource {resource_url}: {e}")
-                return None
+                logger.warning(f"Failed to fetch asset {asset_url} during capture: {e}")
 
-        # 3. Compile HTML by inlining all assets
-        try:
-            logger.info("Inlining page resources...")
-            compiled_html = inline_html_resources(
-                html_content,
-                url,
-                fetch_text=fetch_text_callback,
-                fetch_data_uri=fetch_data_uri_callback,
-            )
-        finally:
-            fetcher.close()
+        # Close fetcher session
+        fetcher.close()
 
-        # 4. Save compiled HTML to file
+        # 5. Write to output using the selected Strategy format writer
         try:
-            if output_path.parent:
-                output_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(output_path, "w", encoding="utf-8") as f:
-                f.write(compiled_html)
-            logger.info(f"Successfully saved compiled page to {output_path}")
+            writer = ArchiveWriterFactory.get_writer(self.config.format)
+            saved_path = writer.write(html_content, url, assets, output_path)
+            logger.info(f"Successfully saved captured page to {saved_path}")
+            return saved_path
         except Exception as e:
             logger.error(f"Failed to write output to {output_path}: {e}")
             raise ArchiveError(f"Failed to write output to {output_path}: {e}") from e
-
-        return output_path

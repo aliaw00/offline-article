@@ -1,3 +1,4 @@
+import zipfile
 from pathlib import Path
 
 from typer.testing import CliRunner
@@ -26,3 +27,31 @@ def test_save_command(local_server: str, tmp_path: Path) -> None:
     with open(output_file, encoding="utf-8") as f:
         content = f.read()
     assert "Test Page" in content
+
+
+def test_save_command_zip(local_server: str, tmp_path: Path) -> None:
+    """Tests that running the CLI save command with ZIP format successfully saves a zip archive."""
+    output_file = tmp_path / "cli_saved.zip"
+    result = runner.invoke(app, ["save", local_server, "--format", "zip", "--output", str(output_file)])
+    assert result.exit_code == 0
+    assert output_file.is_file()
+    assert zipfile.is_zipfile(output_file)
+
+    with zipfile.ZipFile(output_file) as zf:
+        namelist = zf.namelist()
+        assert "index.html" in namelist
+        assert any(name.startswith("assets/logo_") for name in namelist)
+
+
+def test_save_command_dir(local_server: str, tmp_path: Path) -> None:
+    """Tests that running the CLI save command with dir format successfully saves an offline folder."""
+    output_dir = tmp_path / "cli_saved_dir"
+    result = runner.invoke(app, ["save", local_server, "--format", "dir", "--output", str(output_dir)])
+    assert result.exit_code == 0
+    assert output_dir.is_dir()
+    assert (output_dir / "index.html").is_file()
+    assert (output_dir / "assets").is_dir()
+
+    # Verify index.html content
+    index_content = (output_dir / "index.html").read_text(encoding="utf-8")
+    assert "Test Page" in index_content
