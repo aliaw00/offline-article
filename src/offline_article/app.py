@@ -81,16 +81,6 @@ class App:
 
             page = page_loader.load_page(context, url)
 
-            # Support OAuth/interactive login workflows
-            if self.config.interactive:
-                logger.info("Interactive mode active. Please log in through the browser window.")
-                print("\n" + "=" * 80)
-                print(" [INTERACTIVE MODE ACTIVE]")
-                print(" Please complete authentication in the browser window.")
-                print(" Press [Enter] in this terminal when you are ready to continue capturing...")
-                print("=" * 80 + "\n")
-                input()
-
             logger.info("Extracting rendered page content...")
             html_content = page.content()
 

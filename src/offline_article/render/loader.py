@@ -50,6 +50,52 @@ class PageLoader:
             if response.status >= 400:
                 logger.warning(f"Page returned HTTP status code {response.status}")
 
+            # Check if login is required and handle manual interactive login tab workflow
+            if self.is_login_required(page):
+                if not self.config.interactive:
+                    logger.warning(
+                        f"Authentication required for {url}, but interactive mode is not enabled. "
+                        "Please run with '--interactive' or use 'auth-login' first."
+                    )
+                else:
+                    logger.info("Authentication detected! Opening temporary tab for manual login...")
+                    login_tab = context.new_page()
+                    try:
+                        login_tab.goto(page.url)
+                        print("\n" + "=" * 80)
+                        print(" [MANUAL LOGIN FLOW ACTIVE]")
+                        print(f" Detected login page: {page.url}")
+                        print(" Please complete manual login in the browser window/tab.")
+                        print(" We will automatically detect when you are finished.")
+                        print("=" * 80 + "\n")
+
+                        import time
+
+                        authenticated = False
+                        for _ in range(120):
+                            if login_tab.is_closed():
+                                break
+                            if not self.is_login_required(login_tab):
+                                authenticated = True
+                                break
+                            time.sleep(1)
+
+                        # Close temporary login tab after capture/authentication detection
+                        try:
+                            login_tab.close()
+                        except Exception:
+                            pass
+
+                        if authenticated:
+                            logger.info("Authenticated state detected! Reloading target page...")
+                            response = page.goto(url, wait_until=wait_until_literal, timeout=timeout_ms)
+                            if not response:
+                                raise RenderError(f"No response received from {url} after re-navigation")
+                        else:
+                            logger.warning("Manual login timeout or cancelled.")
+                    except Exception as le:
+                        logger.warning(f"Error in manual login flow: {le}")
+
             # Optional scroll down to trigger lazy loading
             if self.config.scroll:
                 self._scroll_page(page)
@@ -58,6 +104,19 @@ class PageLoader:
         except Exception as e:
             logger.error(f"Error loading page {url}: {e}")
             raise RenderError(f"Error loading page {url}: {e}") from e
+
+    def is_login_required(self, page: Page) -> bool:
+        """Determines if the page is currently a login or authentication page."""
+        try:
+            current_url = page.url.lower()
+            if any(k in current_url for k in ["login", "signin", "auth", "oauth", "sign-in", "log-in"]):
+                return True
+            # Check for password input fields
+            if page.locator("input[type='password']").count() > 0:
+                return True
+        except Exception:
+            pass
+        return False
 
     def _scroll_page(self, page: Page) -> None:
         """Scrolls the page down incrementally to trigger lazy loading."""
