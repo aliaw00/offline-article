@@ -119,25 +119,35 @@ class PageLoader:
         return False
 
     def _scroll_page(self, page: Page) -> None:
-        """Scrolls the page down incrementally to trigger lazy loading."""
+        """Scrolls the page down incrementally to trigger lazy loading and infinite scroll content."""
         try:
             logger.info("Scrolling page to trigger lazy loading...")
-            # Simple scrolling script
             page.evaluate(
                 """
                 async () => {
                     await new Promise((resolve) => {
-                        let totalHeight = 0;
-                        const distance = 100;
+                        let lastHeight = document.body.scrollHeight;
+                        let noChangeCount = 0;
+                        let scrollsCount = 0;
+                        const maxScrolls = 30; // safety limit to prevent infinite loops
+
                         const timer = setInterval(() => {
-                            const scrollHeight = document.body.scrollHeight;
-                            window.scrollBy(0, distance);
-                            totalHeight += distance;
-                            if(totalHeight >= scrollHeight - window.innerHeight){
+                            window.scrollBy(0, window.innerHeight);
+                            scrollsCount++;
+
+                            let newHeight = document.body.scrollHeight;
+                            if (newHeight === lastHeight) {
+                                noChangeCount++;
+                            } else {
+                                noChangeCount = 0;
+                                lastHeight = newHeight;
+                            }
+
+                            if (noChangeCount >= 3 || scrollsCount >= maxScrolls) {
                                 clearInterval(timer);
                                 resolve();
                             }
-                        }, 100);
+                        }, 150);
                     });
                 }
                 """
@@ -146,6 +156,9 @@ class PageLoader:
             wait_until_value = self.config.wait_until
             if wait_until_value in ["load", "domcontentloaded", "networkidle"]:
                 state_literal = cast(Literal["domcontentloaded", "load", "networkidle"], wait_until_value)
-                page.wait_for_load_state(state=state_literal, timeout=5000)
+                try:
+                    page.wait_for_load_state(state=state_literal, timeout=5000)
+                except Exception:
+                    logger.debug("Timeout waiting for load state after scroll, proceeding anyway.")
         except Exception as e:
             logger.warning(f"Scrolling page failed: {e}")

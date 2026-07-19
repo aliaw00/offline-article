@@ -82,7 +82,7 @@ class App:
             page = page_loader.load_page(context, url)
 
             logger.info("Extracting rendered page content...")
-            html_content = page.content()
+            html_content = serialize_page_dom(page)
 
             # Retrieve session cookies and user-agent
             cookies = context.cookies()
@@ -149,3 +149,64 @@ class App:
         except Exception as e:
             logger.error(f"Failed to write output to {output_path}: {e}")
             raise ArchiveError(f"Failed to write output to {output_path}: {e}") from e
+
+
+def serialize_page_dom(page: Any) -> str:
+    """Serializes the page DOM recursively, including open/closed Shadow Roots using Declarative Shadow DOM."""
+    js_code = """
+        () => {
+            const voidElements = new Set([
+                "area", "base", "br", "col", "embed", "hr", "img",
+                "input", "link", "meta", "source", "track", "wbr"
+            ]);
+            function serialize(node) {
+                if (node.nodeType === Node.TEXT_NODE) {
+                    return node.textContent.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+                }
+                if (node.nodeType === Node.COMMENT_NODE) {
+                    return `<!--${node.textContent}-->`;
+                }
+                if (node.nodeType !== Node.ELEMENT_NODE) {
+                    return "";
+                }
+
+                let tag = node.tagName.toLowerCase();
+                let html = `<${tag}`;
+                for (let i = 0; i < node.attributes.length; i++) {
+                    let attr = node.attributes[i];
+                    html += ` ${attr.name}="${attr.value.replace(/"/g, "&quot;")}"`;
+                }
+                html += ">";
+
+                if (voidElements.has(tag)) {
+                    return html;
+                }
+
+                if (node.shadowRoot) {
+                    html += `<template shadowrootmode="open">`;
+                    for (let child of node.shadowRoot.childNodes) {
+                        html += serialize(child);
+                    }
+                    html += `</template>`;
+                }
+
+                for (let child of node.childNodes) {
+                    html += serialize(child);
+                }
+
+                html += `</${tag}>`;
+                return html;
+            }
+            return serialize(document.documentElement);
+        }
+    """
+    try:
+        content = page.evaluate(js_code)
+        if not isinstance(content, str):
+            return page.content()
+        if not content.strip().lower().startswith("<!doctype"):
+            content = "<!DOCTYPE html>\n" + content
+        return content
+    except Exception as e:
+        logger.warning(f"Shadow DOM serialization failed, falling back to standard content(): {e}")
+        return page.content()

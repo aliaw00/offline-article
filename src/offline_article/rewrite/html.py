@@ -172,4 +172,23 @@ def inline_html_resources(
             inlined_style = inline_css_urls(style_attr, base_url, css_inline_callback)
             tag["style"] = inlined_style
 
+    # 7. Inline Iframes recursively
+    for iframe in soup.find_all("iframe"):
+        src = get_str_attr(iframe, "src")
+        if src and not src.lower().startswith("data:"):
+            abs_url = normalize_url(base_url, src)
+            logger.info(f"Recursively inlining iframe: {abs_url}")
+            iframe_html = fetch_text(abs_url)
+            if iframe_html is not None:
+                inlined_iframe = inline_html_resources(
+                    iframe_html,
+                    abs_url,
+                    fetch_text=fetch_text,
+                    fetch_data_uri=fetch_data_uri,
+                )
+                import base64
+
+                encoded_iframe = base64.b64encode(inlined_iframe.encode("utf-8")).decode("utf-8")
+                iframe["src"] = f"data:text/html;base64,{encoded_iframe}"
+
     return str(soup)
