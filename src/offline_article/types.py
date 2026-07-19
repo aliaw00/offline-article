@@ -5,6 +5,7 @@ from typing import Any
 @dataclass
 class Resource:
     """Represents a discovered and retrieved web page asset (image, stylesheet, script, font, etc.)."""
+
     url: str
     content_type: str
     content: bytes

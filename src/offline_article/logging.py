@@ -5,6 +5,7 @@ import sys
 # If rich is installed, we can optionally use RichHandler.
 try:
     from rich.logging import RichHandler
+
     HAS_RICH = True
 except ImportError:
     HAS_RICH = False

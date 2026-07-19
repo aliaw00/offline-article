@@ -10,6 +10,7 @@ class CaptureConfig(BaseModel):
     """
     Configuration for a single capture run.
     """
+
     format: str = Field(default="html", description="Output format (html, zip, dir, mhtml)")
     browser: str = Field(default="chromium", description="Browser to use (chromium, firefox, webkit)")
     profile_path: Path | None = Field(default=None, description="Path to browser profile directory")
@@ -31,10 +32,9 @@ class AppConfig(BaseModel):
     """
     Global application configuration.
     """
+
     default_capture_config: CaptureConfig = Field(default_factory=CaptureConfig)
-    cache_dir: Path = Field(
-        default_factory=lambda: Path.home() / ".cache" / "offline-article"
-    )
+    cache_dir: Path = Field(default_factory=lambda: Path.home() / ".cache" / "offline-article")
 
     @classmethod
     def load_from_file(cls, path: Path = DEFAULT_CONFIG_FILE) -> "AppConfig":
