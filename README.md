@@ -14,6 +14,7 @@ It is built for real-world usage, supporting normal static sites, JavaScript-hea
 * **Modern Tech Stack**: Powered by Playwright, Typer, Rich, Pydantic, and HTTPX.
 * **Smart Overwrite Protection**: Prompts before overwriting existing files, with `--overwrite` flag to force.
 * **Comprehensive CLI Help**: Detailed help messages for all commands and flags.
+* **Version Management**: Built-in version display and automatic update command.
 
 ---
 
@@ -58,9 +59,9 @@ Once installed, you can use the `offline-article` command.
 
 | Option | Description |
 |--------|-------------|
-| `--help` | Show help message and exit |
-| `--version` | Show version and exit |
-| `--verbose` | Enable verbose logging |
+| `--help`, `-h` | Show help message and exit |
+| `--version`, `-V` | Show version and exit |
+| `--verbose`, `-v` | Enable verbose logging |
 | `--debug` | Enable debug mode with detailed logging |
 
 ### 1. Save a Web Page (Default to single-file HTML)
@@ -161,6 +162,31 @@ offline-article batch urls.txt --format html
 | `--timeout` | Timeout for all pages |
 | `--scroll` | Enable scrolling for all pages |
 | `--overwrite` | Force overwrite all existing files |
+
+### 7. Update offline-article
+
+Automatically check for and install updates:
+```bash
+offline-article update
+```
+
+This command will upgrade the package to the latest available version using pip.
+
+**Options:**
+
+| Flag | Description |
+|------|-------------|
+| `--verbose`, `-v` | Enable verbose logging |
+| `--debug` | Enable debug mode with detailed logging |
+
+### 8. Check Version
+
+Display the current version of offline-article:
+```bash
+offline-article --version
+# or
+offline-article -V
+```
 
 ---
 

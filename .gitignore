@@ -1,124 +1,55 @@
-# ============================================================
-# Python
-# ============================================================
-
+```
+# Compiled and build artifacts
+*.pyc
 __pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-
-# ============================================================
-# Virtual environments
-# ============================================================
-
-.venv/
-venv/
-env/
-ENV/
-env.bak/
-venv.bak/
-
-# ============================================================
-# Environment / secrets
-# ============================================================
-
-.env
-.env.*
-!.env.example
-
-# ============================================================
-# Build / distribution
-# ============================================================
-
-build/
-dist/
-develop-eggs/
-downloads/
-eggs/
-.eggs/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-MANIFEST
-
-# ============================================================
-# Django
-# ============================================================
-
-db.sqlite3
-db.sqlite3-journal
-media/
-staticfiles/
-
-# ============================================================
-# Testing / coverage
-# ============================================================
-
-.coverage
-.coverage.*
-coverage.xml
-coverage/
-htmlcov/
-.pytest_cache/
-.hypothesis/
-
-# ============================================================
-# Type checking / linters
-# ============================================================
-
-.mypy_cache/
-.dmypy.json
-dmypy.json
-.pyre/
-.ruff_cache/
-
-# ============================================================
-# Logs / temporary files
-# ============================================================
-
-*.log
-*.tmp
-*.temp
-*.swp
-*.swo
-*.swn
-*~
-temp/
-
-# ============================================================
-# IDE / editors
-# ============================================================
-
-.vscode/
-.idea/
-*.code-workspace
-
-# ============================================================
-# OS files
-# ============================================================
-
-.DS_Store
-Thumbs.db
-desktop.ini
-
-# ============================================================
-# Compiled / native build artifacts
-# ============================================================
-
 *.o
 *.obj
+*.so
 *.a
 *.dll
 *.exe
 *.out
 
-# ============================================================
-# Local / private files
-# ============================================================
+# Dependencies
+.venv/
+venv/
+.env
+.env.local
+.env.*
 
-prompt.md
+# Logs and temp files
+*.log
+*.tmp
+*.swp
+*.swo
+
+# Coverage reports
+.coverage
+coverage/
+htmlcov/
+
+# Editors
+.vscode/
+.idea/
+
+# Python specific
+*.pyc
+__pycache__/
+*.pyo
+*.pyd
+.Python
+*.so
+.Python
+*.egg-info/
+.eggs/
+
+# Testing
+.pytest_cache/
+.mypy_cache/
+.hypothesis/
+
+# Build directories
+build/
+dist/
+*.egg
+```

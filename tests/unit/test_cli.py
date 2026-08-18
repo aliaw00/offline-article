@@ -91,3 +91,89 @@ def test_validate_command(local_server: str, tmp_path: Path) -> None:
     result_bad = runner.invoke(app, ["validate", str(tmp_path / "does_not_exist.html")])
     assert result_bad.exit_code != 0
     assert "Path does not exist" in result_bad.stdout
+
+
+def test_version_flag() -> None:
+    """Tests that the CLI version flag works correctly."""
+    result = runner.invoke(app, ["--version"])
+    assert result.exit_code == 0
+    assert "offline-article version" in result.stdout
+    assert "1.0.1" in result.stdout
+
+
+def test_version_short_flag() -> None:
+    """Tests that the CLI -V short flag works correctly."""
+    result = runner.invoke(app, ["-V"])
+    assert result.exit_code == 0
+    assert "offline-article version" in result.stdout
+
+
+def test_help_contains_version_option() -> None:
+    """Tests that help page shows the version option."""
+    result = runner.invoke(app, ["--help"])
+    assert result.exit_code == 0
+    assert "--version" in result.stdout or "-V" in result.stdout
+
+
+def test_update_command_help() -> None:
+    """Tests that the update command help works."""
+    result = runner.invoke(app, ["update", "--help"])
+    assert result.exit_code == 0
+    assert "Update offline-article" in result.stdout
+
+
+def test_update_command_execution() -> None:
+    """Tests that the update command executes without error."""
+    result = runner.invoke(app, ["update"])
+    assert result.exit_code == 0
+    # Should either be up to date or show update output
+    assert "Checking for updates" in result.stdout or "Update" in result.stdout
+
+
+def test_save_with_invalid_format(local_server: str, tmp_path: Path) -> None:
+    """Tests that save command rejects invalid format."""
+    output_file = tmp_path / "invalid.html"
+    result = runner.invoke(app, ["save", local_server, "--format", "invalid_format", "--output", str(output_file)])
+    # Should fail due to invalid format
+    assert result.exit_code != 0
+
+
+def test_save_nonexistent_url(tmp_path: Path) -> None:
+    """Tests that save command handles nonexistent URL gracefully."""
+    output_file = tmp_path / "should_fail.html"
+    result = runner.invoke(app, ["save", "http://nonexistent.invalid/page", "--output", str(output_file), "--timeout", "5"])
+    # Should fail since URL doesn't exist
+    assert result.exit_code != 0
+
+
+def test_batch_empty_file(tmp_path: Path) -> None:
+    """Tests batch command with empty file."""
+    urls_file = tmp_path / "empty.txt"
+    urls_file.write_text("", encoding="utf-8")
+    
+    output_dir = tmp_path / "batch_out"
+    result = runner.invoke(app, ["batch", str(urls_file), "--output-dir", str(output_dir)])
+    assert result.exit_code == 0
+    assert "No valid URLs found" in result.stdout
+
+
+def test_batch_comments_only_file(tmp_path: Path) -> None:
+    """Tests batch command with file containing only comments."""
+    urls_file = tmp_path / "comments.txt"
+    urls_file.write_text("# comment 1\n# comment 2\n", encoding="utf-8")
+    
+    output_dir = tmp_path / "batch_out"
+    result = runner.invoke(app, ["batch", str(urls_file), "--output-dir", str(output_dir)])
+    assert result.exit_code == 0
+    assert "No valid URLs found" in result.stdout
+
+
+def test_validate_unsupported_extension(tmp_path: Path) -> None:
+    """Tests validate command with unsupported file extension."""
+    fake_file = tmp_path / "unsupported.txt"
+    fake_file.write_text("dummy content", encoding="utf-8")
+    
+    result = runner.invoke(app, ["validate", str(fake_file)])
+    assert result.exit_code != 0
+    assert "Unsupported file extension" in result.stdout
+
