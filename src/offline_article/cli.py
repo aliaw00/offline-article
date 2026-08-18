@@ -6,6 +6,7 @@ import typer
 from rich.console import Console
 from rich.prompt import Confirm
 
+from offline_article import __version__
 from offline_article.app import App
 from offline_article.config import CaptureConfig
 from offline_article.logging import setup_logging
@@ -14,16 +15,35 @@ app = typer.Typer(
     name="offline-article",
     help="Save entire web pages for offline use.",
     no_args_is_help=True,
+    context_settings={"help_option_names": ["-h", "--help"]},
 )
 console = Console()
 logger = logging.getLogger("offline-article")
 
 
-def common_callback(
+def version_callback(value: bool) -> None:
+    """Callback to display version information."""
+    if value:
+        console.print(f"offline-article version [bold green]{__version__}[/]")
+        raise typer.Exit()
+
+
+@app.callback()
+def main_callback(
     verbose: Annotated[bool, typer.Option("--verbose", "-v", help="Enable verbose logging")] = False,
     debug: Annotated[bool, typer.Option("--debug", help="Enable debug mode with detailed logging")] = False,
+    version: Annotated[
+        bool | None,
+        typer.Option(
+            "--version",
+            "-V",
+            callback=version_callback,
+            help="Show version and exit",
+            is_eager=True,
+        ),
+    ] = None,
 ) -> None:
-    """Common callback to initialize logging levels."""
+    """Common callback to initialize logging levels and handle global options."""
     setup_logging(verbose=verbose, debug=debug)
 
 
@@ -466,6 +486,46 @@ def batch_command(
             console.print(f"  [bold red]Failed:[/] {e}")
 
     console.print(f"\n[bold green]Batch complete![/] Successfully captured {success_count}/{len(urls)} pages.")
+
+
+@app.command(name="update")
+def update_command(
+    verbose: Annotated[bool, typer.Option("--verbose", "-v", help="Enable verbose logging")] = False,
+    debug: Annotated[bool, typer.Option("--debug", help="Enable debug mode with detailed logging")] = False,
+) -> None:
+    """
+    Update offline-article to the latest version.
+    
+    This command checks for updates and upgrades the package automatically.
+    It uses pip to perform the upgrade in-place.
+    """
+    import subprocess
+    import sys
+    
+    setup_logging(verbose=verbose, debug=debug)
+    console.print("[blue]Checking for updates...[/]")
+    
+    try:
+        # Run pip install --upgrade offline-article
+        result = subprocess.run(
+            [sys.executable, "-m", "pip", "install", "--upgrade", "offline-article"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        
+        if result.returncode == 0:
+            if "Successfully installed" in result.stdout or "already up-to-date" in result.stdout.lower():
+                console.print("[bold green]offline-article is up to date![/]")
+            else:
+                console.print(f"[bold green]Update completed![/]\n{result.stdout}")
+        else:
+            console.print(f"[bold red]Update failed:[/] {result.stderr}")
+            raise typer.Exit(1)
+            
+    except Exception as e:
+        console.print(f"[bold red]Update error:[/] {e}")
+        raise typer.Exit(1) from e
 
 
 if __name__ == "__main__":
