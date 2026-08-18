@@ -26,7 +26,7 @@ To set up a local development environment:
 
 1. Clone the repository and navigate into it:
    ```bash
-   git clone <repo-url> offline-article
+   git clone https://github.com/aliaw00/offline-article.git offline-article
    cd offline-article
    ```
 
