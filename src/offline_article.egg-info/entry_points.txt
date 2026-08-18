@@ -1,2 +1,0 @@
-[console_scripts]
-offline-article = offline_article.cli:app
