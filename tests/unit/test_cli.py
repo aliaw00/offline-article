@@ -66,7 +66,7 @@ def test_batch_command(local_server: str, tmp_path: Path) -> None:
 
     output_dir = tmp_path / "batch_out"
 
-    result = runner.invoke(app, ["batch", str(urls_file), "--output-dir", str(output_dir), "--format", "html"])
+    result = runner.invoke(app, ["batch", str(urls_file), "--output-dir", str(output_dir), "--format", "html", "--overwrite"])
     assert result.exit_code == 0
     assert "Successfully captured 2/2 pages" in result.stdout
 
