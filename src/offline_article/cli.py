@@ -4,6 +4,7 @@ from typing import Annotated, Any
 
 import typer
 from rich.console import Console
+from rich.prompt import Confirm
 
 from offline_article.app import App
 from offline_article.config import CaptureConfig
@@ -20,7 +21,7 @@ logger = logging.getLogger("offline-article")
 
 def common_callback(
     verbose: Annotated[bool, typer.Option("--verbose", "-v", help="Enable verbose logging")] = False,
-    debug: Annotated[bool, typer.Option("--debug", "-d", help="Enable debug logging")] = False,
+    debug: Annotated[bool, typer.Option("--debug", help="Enable debug mode with detailed logging")] = False,
 ) -> None:
     """Common callback to initialize logging levels."""
     setup_logging(verbose=verbose, debug=debug)
@@ -39,11 +40,11 @@ def save_command(
     ] = "html",
     browser: Annotated[
         str,
-        typer.Option("--browser", "-b", help="Browser to use: chromium, firefox, webkit"),
+        typer.Option("--browser", "-b", help="Browser engine to use: chromium, firefox, webkit"),
     ] = "chromium",
     profile: Annotated[
         Path | None,
-        typer.Option("--profile", help="Path to browser profile directory to use"),
+        typer.Option("--profile", help="Path to browser profile directory for session/cookie reuse"),
     ] = None,
     cookies: Annotated[
         Path | None,
@@ -55,33 +56,37 @@ def save_command(
     ] = "networkidle",
     timeout: Annotated[
         int,
-        typer.Option("--timeout", help="Timeout in seconds for operations"),
+        typer.Option("--timeout", help="Timeout in seconds for page load and network operations"),
     ] = 30,
     scroll: Annotated[
         bool,
-        typer.Option("--scroll", help="Enable scrolling down page to trigger lazy loading"),
+        typer.Option("--scroll", help="Enable scrolling down page to trigger lazy-loaded content"),
     ] = False,
     proxy: Annotated[
         str | None,
-        typer.Option("--proxy", help="Proxy server URL"),
+        typer.Option("--proxy", help="Proxy server URL (e.g., http://user:pass@host:port)"),
     ] = None,
     user_agent: Annotated[
         str | None,
-        typer.Option("--user-agent", help="Custom User-Agent string"),
+        typer.Option("--user-agent", help="Custom User-Agent string to spoof browser identity"),
     ] = None,
     no_images: Annotated[
         bool,
-        typer.Option("--no-images", help="Disable loading images in the browser"),
+        typer.Option("--no-images", help="Disable loading images in the browser (saves bandwidth)"),
     ] = False,
     no_js: Annotated[
         bool,
         typer.Option("--no-js", help="Disable JavaScript execution in the browser"),
     ] = False,
     verbose: Annotated[bool, typer.Option("--verbose", "-v", help="Enable verbose logging")] = False,
-    debug: Annotated[bool, typer.Option("--debug", "-d", help="Enable debug logging")] = False,
+    debug: Annotated[bool, typer.Option("--debug", help="Enable debug mode with detailed logging")] = False,
     interactive: Annotated[
         bool,
-        typer.Option("--interactive", "-i", help="Run browser in headful mode and pause for manual interaction"),
+        typer.Option("--interactive", "-i", help="Run browser in headful mode and pause for manual interaction/login"),
+    ] = False,
+    overwrite: Annotated[
+        bool,
+        typer.Option("--overwrite", help="Force overwrite existing output files without prompting"),
     ] = False,
 ) -> None:
     """
@@ -113,6 +118,16 @@ def save_command(
         raise typer.Exit(1) from e
 
     console.print(f"[green]Starting capture for:[/] {url}")
+    
+    # Check if output file exists and handle overwrite logic
+    if output is not None and output.exists() and not overwrite:
+        if interactive or not Confirm.ask(
+            f"File [bold]{output}[/] already exists. Overwrite?",
+            default=False
+        ):
+            console.print("[yellow]Operation cancelled.[/]")
+            raise typer.Exit(0)
+    
     try:
         app_runner = App(config)
         with console.status("[bold green]Capturing page resources (this may take a few seconds)...", spinner="dots"):
@@ -127,14 +142,14 @@ def save_command(
 def auth_login_command(
     browser: Annotated[
         str,
-        typer.Option("--browser", "-b", help="Browser to use: chromium, firefox, webkit"),
+        typer.Option("--browser", "-b", help="Browser engine to use: chromium, firefox, webkit"),
     ] = "chromium",
     profile: Annotated[
         Path | None,
-        typer.Option("--profile", help="Path to browser profile directory to use"),
+        typer.Option("--profile", help="Path to browser profile directory for session/cookie reuse"),
     ] = None,
     verbose: Annotated[bool, typer.Option("--verbose", "-v", help="Enable verbose logging")] = False,
-    debug: Annotated[bool, typer.Option("--debug", "-d", help="Enable debug logging")] = False,
+    debug: Annotated[bool, typer.Option("--debug", help="Enable debug mode with detailed logging")] = False,
 ) -> None:
     """
     Launch browser and let user log in manually to save session/profile context.
@@ -179,12 +194,20 @@ def auth_login_command(
 
 @app.command(name="inspect")
 def inspect_command(
-    url: Annotated[str, typer.Argument(help="URL to inspect")],
+    url: Annotated[str, typer.Argument(help="URL to inspect for resource discovery")],
+    browser: Annotated[
+        str,
+        typer.Option("--browser", "-b", help="Browser engine to use: chromium, firefox, webkit"),
+    ] = "chromium",
     verbose: Annotated[bool, typer.Option("--verbose", "-v", help="Enable verbose logging")] = False,
-    debug: Annotated[bool, typer.Option("--debug", "-d", help="Enable debug logging")] = False,
+    debug: Annotated[bool, typer.Option("--debug", help="Enable debug mode with detailed logging")] = False,
 ) -> None:
     """
     Inspect a URL, showing discovered resources and potential compatibility issues.
+    
+    This command opens the URL in a headless browser, renders the page, and lists
+    all discovered assets (images, scripts, stylesheets, fonts, etc.) that would
+    be captured during a save operation.
     """
     setup_logging(verbose=verbose, debug=debug)
     console.print(f"[blue]Inspecting URL:[/] {url}")
@@ -230,10 +253,13 @@ def inspect_command(
 def validate_command(
     path: Annotated[Path, typer.Argument(help="Path to the saved offline archive file or directory")],
     verbose: Annotated[bool, typer.Option("--verbose", "-v", help="Enable verbose logging")] = False,
-    debug: Annotated[bool, typer.Option("--debug", "-d", help="Enable debug logging")] = False,
+    debug: Annotated[bool, typer.Option("--debug", help="Enable debug mode with detailed logging")] = False,
 ) -> None:
     """
     Validate a saved offline archive for local links integrity and completeness.
+    
+    Checks for external resource references that should be inlined, broken local
+    links, and missing required files (e.g., index.html in ZIP/directory archives).
     """
     setup_logging(verbose=verbose, debug=debug)
     console.print(f"[blue]Validating offline archive at:[/] {path}")
@@ -328,7 +354,7 @@ def validate_command(
 
 @app.command(name="batch")
 def batch_command(
-    file_path: Annotated[Path, typer.Argument(help="Path to file containing URLs (one per line)")],
+    file_path: Annotated[Path, typer.Argument(help="Path to text file containing URLs (one per line, # for comments)")],
     output_dir: Annotated[
         Path,
         typer.Option("--output-dir", help="Directory where captured files will be saved"),
@@ -339,13 +365,40 @@ def batch_command(
     ] = "html",
     browser: Annotated[
         str,
-        typer.Option("--browser", "-b", help="Browser type: chromium, firefox, webkit"),
+        typer.Option("--browser", "-b", help="Browser engine to use: chromium, firefox, webkit"),
     ] = "chromium",
+    profile: Annotated[
+        Path | None,
+        typer.Option("--profile", help="Path to browser profile directory for session/cookie reuse"),
+    ] = None,
+    cookies: Annotated[
+        Path | None,
+        typer.Option("--cookies", help="Path to cookie file to import (JSON or Netscape format)"),
+    ] = None,
+    wait: Annotated[
+        str,
+        typer.Option("--wait", help="Wait condition after page load: load, domcontentloaded, networkidle"),
+    ] = "networkidle",
+    timeout: Annotated[
+        int,
+        typer.Option("--timeout", help="Timeout in seconds for page load and network operations"),
+    ] = 30,
+    scroll: Annotated[
+        bool,
+        typer.Option("--scroll", help="Enable scrolling down page to trigger lazy-loaded content"),
+    ] = False,
     verbose: Annotated[bool, typer.Option("--verbose", "-v", help="Enable verbose logging")] = False,
-    debug: Annotated[bool, typer.Option("--debug", "-d", help="Enable debug logging")] = False,
+    debug: Annotated[bool, typer.Option("--debug", help="Enable debug mode with detailed logging")] = False,
+    overwrite: Annotated[
+        bool,
+        typer.Option("--overwrite", help="Force overwrite existing output files without prompting"),
+    ] = False,
 ) -> None:
     """
     Save multiple URLs in a batch process from a text file.
+    
+    Reads URLs from a text file (one per line, lines starting with # are comments)
+    and saves each page using the specified format and options.
     """
     setup_logging(verbose=verbose, debug=debug)
     console.print(f"[blue]Processing batch from:[/] {file_path}")
@@ -371,6 +424,11 @@ def batch_command(
     config = CaptureConfig(
         format=format,
         browser=browser,
+        profile_path=profile,
+        cookies_path=cookies,
+        wait_until=wait,
+        timeout=timeout,
+        scroll=scroll,
         verbose=verbose,
         debug=debug,
     )
@@ -379,17 +437,26 @@ def batch_command(
     success_count = 0
     for i, url in enumerate(urls, 1):
         console.print(f"\n[bold cyan][{i}/{len(urls)}][/] Capturing {url}...")
+        
+        # Determine output path
+        from urllib.parse import urlparse
+
+        parsed = urlparse(url)
+        host = parsed.netloc.replace(".", "_") or "page"
+        path_part = parsed.path.strip("/").replace("/", "_")
+        filename = f"{host}_{path_part}" if path_part else host
+        out_path = output_dir / f"{filename}.{format}"
+        
+        # Check for existing file and handle overwrite
+        if out_path.exists() and not overwrite:
+            if not Confirm.ask(
+                f"File [bold]{out_path}[/] already exists. Overwrite?",
+                default=False
+            ):
+                console.print("[yellow]Skipping.[/]")
+                continue
+        
         try:
-            from urllib.parse import urlparse
-
-            parsed = urlparse(url)
-            host = parsed.netloc.replace(".", "_") or "page"
-            path_part = parsed.path.strip("/").replace("/", "_")
-            filename = f"{host}_{path_part}" if path_part else host
-
-            # Form final output file or directory path
-            out_path = output_dir / f"{filename}.{format}"
-
             with console.status("[bold green]Capturing page...", spinner="dots"):
                 saved_path = app_runner.run(url, out_path)
 
