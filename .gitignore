@@ -1,1 +1,16 @@
-Nothing needs to be added to the .gitignore file since the changes only include source code files (.py) without any build artifacts, dependencies, or temporary files that would require ignoring.
+# Logs and temp files
+*.log
+*.tmp
+*.swp
+
+# Environment
+.env
+.env.local
+*.env.*
+
+# Editors
+.vscode/
+.idea/
+
+# Original rules preserved
+*.log
