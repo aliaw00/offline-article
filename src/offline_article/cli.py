@@ -331,7 +331,7 @@ def batch_command(
     file_path: Annotated[Path, typer.Argument(help="Path to file containing URLs (one per line)")],
     output_dir: Annotated[
         Path,
-        typer.Option("--output-dir", "-d", help="Directory where captured files will be saved"),
+        typer.Option("--output-dir", help="Directory where captured files will be saved"),
     ] = Path("."),
     format: Annotated[
         str,
