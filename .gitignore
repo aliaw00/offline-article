@@ -1,80 +1,71 @@
-# Python
+```
+# Compiled and build artifacts
+*.pyc
 __pycache__/
-*.py[cod]
-*.so
-
-# Virtual Environments
-venv/
-.venv/
-env/
-
-# Environment Variables / Secrets
-.env
-.env.*
-!.env.example
-*.pem
-*.key
-
-# Build / Packaging
-build/
+*.o
+*.obj
 dist/
-*.egg-info/
-.eggs/
+build/
+*.class
+*.so
+*.a
+*.dll
+*.exe
+*.out
 
-# Testing / Coverage
-.pytest_cache/
-.tox/
-.nox/
-.coverage*
-htmlcov/
+# Dependencies
+.venv/
+venv/
+.env
+.env.local
+.env.*
 
-# Type Checkers / Linters
-.mypy_cache/
-.pyre/
-.ruff_cache/
-
-# Jupyter
-.ipynb_checkpoints/
-
-# Logs
+# Logs and temp files
 *.log
-
-# Databases
-*.db
-*.sqlite*
-
-# Caches
-.cache/
-
-# AI / ML
-wandb/
-mlruns/
-runs/
-checkpoints/
+*.tmp
+*.swp
+*.swo
 
 # Editors
 .vscode/
 .idea/
-*.swp
-*~
 
-# OS Files
-.DS_Store
-Thumbs.db
-Desktop.ini
+# Coverage
+.coverage
+coverage/
+htmlcov/
 
-# Node.js (for hybrid projects)
-node_modules/
+# Python specific
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
 
-# Temporary Files
-tmp/
-temp/
-*.tmp
-*.bak
+# Cache
+.mypy_cache/
+.pytest_cache/
+.hypothesis/
 
-# Local Project Files
-error_prompt.txt
-prompt.md
-prompt.txt
-agent.md
-
+# Distribution / packaging
+.Python
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+```

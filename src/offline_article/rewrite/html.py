@@ -145,7 +145,12 @@ def inline_html_resources(
         if any(any(icon in r for icon in icon_rels) for r in rel_lower):
             href = get_str_attr(link, "href")
             if href:
+                # Skip data: URLs that are already inline
+                if href.startswith("data:"):
+                    continue
                 abs_url = normalize_url(base_url, href)
+                if not abs_url:
+                    continue
                 logger.debug(f"Inlining favicon link: {abs_url}")
                 data_uri = fetch_data_uri(abs_url)
                 if data_uri:

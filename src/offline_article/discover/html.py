@@ -23,6 +23,7 @@ def normalize_url(base_url: str, url: str) -> str:
     1. Makes it absolute using base_url.
     2. Strips URL fragments (e.g. #header).
     3. Normalizes path separators.
+    4. Skips data: URLs and other special protocols.
     """
     if not url:
         return ""
@@ -30,11 +31,17 @@ def normalize_url(base_url: str, url: str) -> str:
     # Strip whitespace
     url = url.strip()
 
+    # Skip data: URLs and other non-http(s) protocols
+    if url.startswith(("data:", "blob:", "javascript:", "about:", "#")):
+        return ""
+
     # Join with base URL to make absolute
     absolute_url = urljoin(base_url, url)
 
     # Parse and strip fragment
     parsed = urlparse(absolute_url)
+    if parsed.scheme not in ("http", "https"):
+        return ""
     if parsed.fragment:
         parsed = parsed._replace(fragment="")
         absolute_url = parsed.geturl()
