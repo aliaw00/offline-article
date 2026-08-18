@@ -1,6 +1,6 @@
 # offline-article
 
-`offline-article` is a Linux-first, Python-based CLI tool designed to capture and save full web pages for offline reading. The default output is a single, self-contained, offline-ready HTML file. It also supports exporting to ZIP archives, local directories, and MHTML files.
+`offline-article` is a Python-based CLI tool designed to capture and save full web pages for offline reading. The default output is a single, self-contained, offline-ready HTML file. It also supports exporting to ZIP archives, local directories, and MHTML files.
 
 It is built for real-world usage, supporting normal static sites, JavaScript-heavy SPAs, and authenticated pages using Playwright.
 
