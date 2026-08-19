@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "offline-article"
-version = "1.0.1"
+version = "1.1.1"
 description = "Linux-first CLI to save full web pages for offline use"
 readme = "README.md"
 requires-python = ">=3.12"

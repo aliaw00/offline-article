@@ -6,23 +6,33 @@ It is built for real-world usage, supporting normal static sites, JavaScript-hea
 
 ---
 
-## 🚀 Features
+## What's new in 1.1.0
 
-* **Single-File Output**: Saves pages as completely self-contained `.html` files (with base64 inlined assets) by default.
-* **Format Plugin System**: Export captured pages to `html`, `zip`, `dir`, or `mhtml`.
-* **Authenticated Capture**: Import browser cookies, sessions, or use an interactive login flow.
-* **Modern Tech Stack**: Powered by Playwright, Typer, Rich, Pydantic, and HTTPX.
-* **Smart Overwrite Protection**: Prompts before overwriting existing files, with `--overwrite` flag to force.
-* **Comprehensive CLI Help**: Detailed help messages for all commands and flags.
-* **Version Management**: Built-in version display and automatic update command.
+- Concurrent asset downloads with a bounded worker pool.
+- HTTPX connection pooling for better network reuse.
+- Best-effort asset capture: a failed image/font/script no longer stalls or aborts the article save.
+- Faster default retries: one retry after the initial asset request instead of three attempts with 1s/2s sleeps.
+- Failed visual references are removed from the saved HTML, so offline reading does not try to fetch broken image URLs.
+- `--concurrency` and `--asset-retries` controls for tuning performance.
+- `--no-images` now prevents the browser from downloading images twice during rendering; image assets can still be fetched separately for the final archive.
+- Updated engineering and file-by-file documentation.
+
+## 🚀 Features
+- Self-contained `.html` output with embedded CSS, JavaScript, images, fonts, and recursive iframe content when available.
+- `html`, `zip`, `dir`, and `mhtml` archive formats.
+- JavaScript-heavy page support through Playwright.
+- Authenticated page capture through cookies or a persistent browser profile.
+- Recursive CSS resource discovery including `@import`, background images, cursors, and fonts.
+- Persistent disk cache for previously downloaded assets.
+- Bounded concurrent downloads for fast pages with many independent resources.
+- Graceful degradation when optional resources are unavailable.
 
 ---
 
 ## 🛠️ Installation & Setup
 
 ### Requirements
-* Python 3.12+
-* Linux (with support for Playwright browser dependencies)
+Requirements: Python 3.12+ and a Playwright-supported browser.
 
 ### Developer Installation
 To set up a local development environment:
@@ -74,9 +84,9 @@ offline-article save https://example.com --output example.html
 
 | Flag | Description |
 |------|-------------|
-| `--format` | Output format: `html` (default), `zip`, `dir`, `mhtml` |
+| `--format`, `-f` | Output format: `html` (default), `zip`, `dir`, `mhtml` |
 | `--output`, `-o` | Output file path or directory |
-| `--browser` | Browser engine: `chromium`, `firefox`, `webkit` |
+| `--browser`, `-b` | Browser engine: `chromium`, `firefox`, `webkit` |
 | `--profile` | Path to browser profile directory for session/cookie reuse |
 | `--cookies` | Path to Netscape-format cookies file |
 | `--wait` | Wait condition: `load`, `domcontentloaded`, `networkidle` |
@@ -86,10 +96,12 @@ offline-article save https://example.com --output example.html
 | `--user-agent` | Custom User-Agent string |
 | `--no-images` | Disable loading images (saves bandwidth) |
 | `--no-js` | Disable JavaScript execution |
-| `--interactive` | Run browser headful and pause for manual login |
+| `--interactive`, `-i` | Run browser headful and pause for manual login |
 | `--open-after-save` | Open saved file in default browser after saving |
 | `--keep-temp` | Keep temporary files after completion |
 | `--overwrite` | Force overwrite existing files without prompting |
+| `--concurrency` | Maximum concurrent asset downloads; default `16` |
+| `--asset-retries` | Retries after first asset attempt; default `1` |
 
 ### 2. Save in a Different Format
 
@@ -188,6 +200,54 @@ offline-article --version
 offline-article -V
 ```
 
+### 9. Faster / Concurrency
+
+For a faster best-effort capture on a page with many images:
+   ```bash
+   offline-article save https://example.com \
+   --output article.html \
+   --concurrency 24 \
+   --asset-retries 0
+   ```
+
+---
+
+
+## How saving works
+
+```text
+URL
+ |
+ v
+Playwright render
+ |
+ v
+Rendered DOM
+ |
+ v
+HTML/CSS resource discovery
+ |
+ v
+Persistent cache + concurrent HTTP fetch
+ |
+ +--> success --> rewrite/embed --> archive writer
+ |
+ +--> failure --> log + skip --> continue capture
+```
+
+The browser renders the page first so dynamic content can be captured. Resource discovery then builds a URL graph from HTML and recursively referenced CSS. The fetcher checks the persistent cache, downloads uncached assets concurrently, and treats optional asset failures as non-fatal. Successful resources are then rewritten into the selected archive format.
+
+---
+
+## Performance tuning
+
+The default `--concurrency 16` is intended to be a safe starting point. Increase it moderately for pages with many independent resources. Reduce it for remote hosts that rate-limit or reject bursts.
+
+Set `--asset-retries 0` to skip failed optional assets immediately. Set it to `1` or `2` if transient network failures are common.
+
+The disk cache lives under `~/.cache/offline-article` by default and avoids downloading unchanged URLs again during subsequent captures.
+
+
 ---
 
 ## 🧪 Development & Testing
@@ -219,6 +279,12 @@ Ensure type safety using `mypy`:
 mypy src
 ```
 
+The browser-dependent tests require the Playwright Chromium executable. CI installs it before running the test suite.
+
+See [docs/ENGINEERING.md](docs/ENGINEERING.md) for the architecture, pipeline graph, resource semantics, developer workflow, and design-pattern overview.
+
+See [docs/FILE_GUIDE.md](docs/FILE_GUIDE.md) for a file-by-file explanation of the codebase.
+
 ---
 
 ## 📁 Project Structure
@@ -248,6 +314,8 @@ offline-article/
 * Prefer browser profile/session reuse
 * Only use user-authorized sessions
 * Cookies and profiles are stored securely in user-specified directories
+
+Use only browser profiles, cookies, and authenticated sessions that you are authorized to access. Do not commit credentials, exported cookies, or private browser profiles to source control.
 
 ---
 

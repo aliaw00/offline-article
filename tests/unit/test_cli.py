@@ -98,7 +98,7 @@ def test_version_flag() -> None:
     result = runner.invoke(app, ["--version"])
     assert result.exit_code == 0
     assert "offline-article version" in result.stdout
-    assert "1.0.1" in result.stdout
+    assert "1.1.1" in result.stdout
 
 
 def test_version_short_flag() -> None:
