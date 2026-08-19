@@ -25,6 +25,8 @@ class CaptureConfig(BaseModel):
     verbose: bool = Field(default=False, description="Enable verbose logging")
     debug: bool = Field(default=False, description="Enable debug logging")
     keep_temp: bool = Field(default=False, description="Keep temporary files after execution")
+    concurrency: int = Field(default=16, ge=1, le=128, description="Maximum concurrent asset downloads")
+    asset_retries: int = Field(default=1, ge=0, le=5, description="Number of retries after the first asset download attempt")
     open_after_save: bool = Field(default=False, description="Open saved file in default browser after save")
     interactive: bool = Field(default=False, description="Run browser in headful mode and pause for interaction")
     cache_dir: Path = Field(

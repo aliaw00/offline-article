@@ -14,10 +14,7 @@ def test_disk_cache(tmp_path: Path) -> None:
     content = b"FAKE_PNG_BYTES"
     content_type = "image/png"
 
-    # 1. Initially uncached
     assert cache.get(url) is None
-
-    # 2. Set cache and retrieve
     cache.set(url, content, content_type)
     cached = cache.get(url)
 
@@ -25,7 +22,6 @@ def test_disk_cache(tmp_path: Path) -> None:
     assert cached[0] == content
     assert cached[1] == content_type
 
-    # 3. Clear cache
     cache.clear()
     assert cache.get(url) is None
 
@@ -37,29 +33,50 @@ def test_resource_fetcher_with_cache(tmp_path: Path) -> None:
     content = b"CACHED_CONTENT"
     content_type = "text/plain"
 
-    # Pre-populate cache so fetcher doesn't need to make network request
     cache.set(url, content, content_type)
-
     fetcher = ResourceFetcher(cache=cache)
 
-    # Fetch should hit cache and succeed without network error (even though client is not mock-requested)
     res_content, res_type = fetcher.fetch(url)
 
     assert res_content == content
     assert res_type == content_type
-
     fetcher.close()
 
 
 def test_resource_fetcher_retries(local_server: str) -> None:
-    """Tests that ResourceFetcher retries on network failures before raising FetchError."""
-    # We pass a non-existent URL so that it fails
+    """Tests that ResourceFetcher still raises after its configured retry budget."""
     bad_url = f"{local_server}/non-existent-resource-12345"
-
     fetcher = ResourceFetcher(timeout=2)
 
-    # Should fail and raise FetchError after 3 retries
     with pytest.raises(FetchError):
-        fetcher.fetch(bad_url)
+        fetcher.fetch(bad_url, retries=1)
 
+    fetcher.close()
+
+
+def test_resource_fetcher_fetch_many_skips_failed_assets(local_server: str) -> None:
+    """A single missing asset must not fail the complete concurrent batch."""
+    fetcher = ResourceFetcher(timeout=2, max_connections=4)
+    urls = [
+        f"{local_server}/logo.png",
+        f"{local_server}/bg.png",
+        f"{local_server}/missing.png",
+    ]
+
+    successful, failed = fetcher.fetch_many(urls, max_workers=4, retries=0)
+
+    assert set(successful) == {f"{local_server}/logo.png", f"{local_server}/bg.png"}
+    assert set(failed) == {f"{local_server}/missing.png"}
+    fetcher.close()
+
+
+def test_resource_fetcher_fetch_many_deduplicates_urls(local_server: str) -> None:
+    """Duplicate URLs should be downloaded once and returned once."""
+    fetcher = ResourceFetcher(timeout=2, max_connections=2)
+    url = f"{local_server}/logo.png"
+
+    successful, failed = fetcher.fetch_many([url, url, url], max_workers=2, retries=0)
+
+    assert set(successful) == {url}
+    assert failed == {}
     fetcher.close()

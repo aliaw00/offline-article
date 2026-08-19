@@ -197,3 +197,72 @@ def inline_html_resources(
                 iframe["src"] = f"data:text/html;base64,{encoded_iframe}"
 
     return str(soup)
+
+
+def remove_unavailable_visuals(html_content: str, base_url: str, failed_urls: Any) -> str:
+    """Remove failed image/icon references so the saved document stays offline-friendly."""
+    failed = set(failed_urls)
+    if not failed:
+        return html_content
+
+    soup = BeautifulSoup(html_content, "lxml")
+
+    def is_failed(value: str) -> bool:
+        normalized = normalize_url(base_url, value)
+        return normalized in failed
+
+    for img in soup.find_all("img"):
+        src = get_str_attr(img, "src")
+        if src and is_failed(src):
+            img.attrs.pop("src", None)
+        srcset = get_str_attr(img, "srcset")
+        if srcset:
+            kept = []
+            for part in srcset.split(","):
+                tokens = part.strip().split()
+                if tokens and not is_failed(tokens[0]):
+                    kept.append(" ".join(tokens))
+            if kept:
+                img["srcset"] = ", ".join(kept)
+            else:
+                img.attrs.pop("srcset", None)
+
+    for source in soup.find_all("source"):
+        src = get_str_attr(source, "src")
+        if src and is_failed(src):
+            source.attrs.pop("src", None)
+        srcset = get_str_attr(source, "srcset")
+        if srcset:
+            kept = []
+            for part in srcset.split(","):
+                tokens = part.strip().split()
+                if tokens and not is_failed(tokens[0]):
+                    kept.append(" ".join(tokens))
+            if kept:
+                source["srcset"] = ", ".join(kept)
+            else:
+                source.attrs.pop("srcset", None)
+
+    for svg_img in soup.find_all("image"):
+        href_attr = "href" if svg_img.has_attr("href") else "xlink:href"
+        href = get_str_attr(svg_img, href_attr)
+        if href and is_failed(href):
+            svg_img.attrs.pop(href_attr, None)
+
+    icon_rels = {"icon", "shortcut", "apple-touch-icon"}
+    for link in soup.find_all("link"):
+        rel_val: Any = link.get("rel") or []
+        rel_list = rel_val if isinstance(rel_val, list) else [rel_val]
+        rel_lower = [str(r).lower() for r in rel_list]
+        href = get_str_attr(link, "href")
+        if href and any(any(icon in rel for icon in icon_rels) for rel in rel_lower) and is_failed(href):
+            link.attrs.pop("href", None)
+
+    for meta in soup.find_all("meta"):
+        property_attr = get_str_attr(meta, "property").lower()
+        name_attr = get_str_attr(meta, "name").lower()
+        content = get_str_attr(meta, "content")
+        if content and ("image" in property_attr or "image" in name_attr or "icon" in name_attr) and is_failed(content):
+            meta.attrs.pop("content", None)
+
+    return str(soup)

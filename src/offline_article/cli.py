@@ -104,6 +104,14 @@ def save_command(
         bool,
         typer.Option("--interactive", "-i", help="Run browser in headful mode and pause for manual interaction/login"),
     ] = False,
+    concurrency: Annotated[
+        int,
+        typer.Option("--concurrency", min=1, max=128, help="Maximum concurrent asset downloads"),
+    ] = 16,
+    asset_retries: Annotated[
+        int,
+        typer.Option("--asset-retries", min=0, max=5, help="Retries after the first failed asset download"),
+    ] = 1,
     overwrite: Annotated[
         bool,
         typer.Option("--overwrite", help="Force overwrite existing output files without prompting"),
@@ -132,6 +140,8 @@ def save_command(
             verbose=verbose,
             debug=debug,
             interactive=interactive,
+            concurrency=concurrency,
+            asset_retries=asset_retries,
         )
     except Exception as e:
         console.print(f"[bold red]Error in configuration parameters:[/] {e}")
@@ -409,6 +419,14 @@ def batch_command(
     ] = False,
     verbose: Annotated[bool, typer.Option("--verbose", "-v", help="Enable verbose logging")] = False,
     debug: Annotated[bool, typer.Option("--debug", help="Enable debug mode with detailed logging")] = False,
+    concurrency: Annotated[
+        int,
+        typer.Option("--concurrency", min=1, max=128, help="Maximum concurrent asset downloads"),
+    ] = 16,
+    asset_retries: Annotated[
+        int,
+        typer.Option("--asset-retries", min=0, max=5, help="Retries after the first failed asset download"),
+    ] = 1,
     overwrite: Annotated[
         bool,
         typer.Option("--overwrite", help="Force overwrite existing output files without prompting"),
@@ -451,6 +469,8 @@ def batch_command(
         scroll=scroll,
         verbose=verbose,
         debug=debug,
+        concurrency=concurrency,
+        asset_retries=asset_retries,
     )
     app_runner = App(config)
 

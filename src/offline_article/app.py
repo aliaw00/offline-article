@@ -26,7 +26,7 @@ class App:
         Orchestrates the entire capture pipeline:
         1. Launches browser
         2. Renders and loads page
-        3. Discovers resources (HTML + CSS imports recursively)
+        3. Discovers resources (html + css imports recursively)
         4. Fetches all assets using browser session details
         5. Rewrites and archives resources into the target format using Strategy Pattern
         """
@@ -104,41 +104,53 @@ class App:
             timeout=self.config.timeout,
             proxy=self.config.proxy,
             cache=cache,
+            max_connections=self.config.concurrency,
         )
 
-        # 3. Discover all resources (HTML + CSS recursive imports)
-        discoverer = ResourceDiscoverer()
+        try:
+            # 3. Discover all resources (HTML + CSS recursive imports)
+            discoverer = ResourceDiscoverer()
 
-        def css_fetch_for_discovery(css_url: str) -> str | None:
-            try:
-                data, _ = fetcher.fetch(css_url)
-                return data.decode("utf-8", errors="replace")
-            except Exception as e:
-                logger.warning(f"Failed to fetch CSS for discovery {css_url}: {e}")
-                return None
+            def css_fetch_for_discovery(css_url: str) -> str | None:
+                try:
+                    data, _ = fetcher.fetch(css_url, retries=self.config.asset_retries)
+                    return data.decode("utf-8", errors="replace")
+                except Exception as e:
+                    logger.warning("Failed to fetch CSS for discovery %s: %s", css_url, e)
+                    return None
 
-        logger.info("Discovering all page assets...")
-        discovered = discoverer.discover_all(html_content, url, css_fetch_for_discovery)
+            logger.info("Discovering all page assets...")
+            discovered = discoverer.discover_all(html_content, url, css_fetch_for_discovery)
 
-        # Flatten sets of URLs into a single set of unique absolute URLs to download
-        all_urls = set()
-        for urls in discovered.values():
-            all_urls.update(urls)
+            # Flatten sets of URLs into a single set of unique absolute URLs to download.
+            all_urls = set()
+            for urls in discovered.values():
+                all_urls.update(urls)
+            all_urls.discard(url)
 
-        # 4. Fetch all discovered resource assets
-        assets: dict[str, tuple[bytes, str]] = {}
-        for asset_url in all_urls:
-            # Skip the main page itself if it's returned in the discovered set
-            if asset_url == url:
-                continue
-            try:
-                data, mime = fetcher.fetch(asset_url)
-                assets[asset_url] = (data, mime)
-            except Exception as e:
-                logger.warning(f"Failed to fetch asset {asset_url} during capture: {e}")
+            # 4. Fetch page assets concurrently. Individual failures are optional.
+            assets, failed_assets = fetcher.fetch_many(
+                all_urls,
+                max_workers=self.config.concurrency,
+                retries=self.config.asset_retries,
+            )
+            logger.info(
+                "Asset capture complete: %d succeeded, %d skipped",
+                len(assets),
+                len(failed_assets),
+            )
 
-        # Close fetcher session
-        fetcher.close()
+            # Remove references to failed image-like resources so a saved page
+            # does not unexpectedly try the network again when read offline.
+            failed_visuals = failed_assets.keys() & (
+                discovered.get("images", set()) | discovered.get("metadata", set())
+            )
+            if failed_visuals:
+                from offline_article.rewrite.html import remove_unavailable_visuals
+
+                html_content = remove_unavailable_visuals(html_content, url, failed_visuals)
+        finally:
+            fetcher.close()
 
         # 5. Write to output using the selected Strategy format writer
         try:
